@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cutie Calc</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#ffe3f1; --shell:#fff8fc; --ink:#5b3a6b; --screen:#fff; --num:#fff;
+  --op:#c9b6ff; --accent:#ff8fc7; --clear:#ffd6a5; --eq:#8fe3c0; --btn-ink:#5b3a6b;
+  --blob1:#fff1a8; --blob2:#c9f2ff;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#2a2142; --shell:#3a2d5c; --ink:#ffe3f1; --screen:#2a2142; --num:#4b3b75;
+    --op:#7a63c9; --clear:#c98a4f; --eq:#3fa37c; --btn-ink:#fff; --blob1:#4a3a78; --blob2:#35507a;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#2a2142; --shell:#3a2d5c; --ink:#ffe3f1; --screen:#2a2142; --num:#4b3b75;
+  --op:#7a63c9; --clear:#c98a4f; --eq:#3fa37c; --btn-ink:#fff; --blob1:#4a3a78; --blob2:#35507a;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{
+  min-height:100vh;display:grid;place-items:center;padding:16px;
+  background:radial-gradient(circle at 20% 15%,var(--blob1) 0 8%,transparent 9%),
+             radial-gradient(circle at 85% 80%,var(--blob2) 0 10%,transparent 11%),var(--bg);
+  font-family:"Fredoka","Comic Sans MS",sans-serif;color:var(--ink);
+}
+.calc{width:min(340px,100%);padding:22px;background:var(--shell);border-radius:36px;border:4px solid var(--ink);box-shadow:8px 8px 0 var(--ink)}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.title{font-weight:600;font-size:1.1rem}
+.screen{background:var(--screen);border:3px solid var(--ink);border-radius:24px;padding:12px 16px 14px;margin-bottom:14px;text-align:right}
+.face{font-size:1.6rem;text-align:left;height:2rem;transition:transform .2s}
+.face.pop{transform:scale(1.4) rotate(-8deg)}
+.expr{min-height:1.3rem;font-size:1rem;opacity:.55;overflow:hidden;white-space:nowrap}
+.out{font-size:2.4rem;font-weight:600;overflow-x:auto;white-space:nowrap}
+.history{max-height:64px;overflow-y:auto;margin-bottom:14px;font-size:.9rem;text-align:right;opacity:.75}
+.history div{padding:1px 4px;cursor:pointer}
+.keys{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+button{font:inherit;font-size:1.4rem;font-weight:500;color:var(--btn-ink);height:60px;border:3px solid var(--ink);border-radius:20px;background:var(--num);box-shadow:0 5px 0 var(--ink);cursor:pointer;transition:transform .08s,box-shadow .08s}
+button:active{transform:translateY(4px);box-shadow:0 1px 0 var(--ink)}
+button:focus-visible{outline:3px dashed var(--accent);outline-offset:3px}
+.op{background:var(--op)}.clear{background:var(--clear)}.del{background:var(--accent)}.eq{background:var(--eq);grid-column:span 2}
+.theme{height:40px;width:40px;font-size:1.1rem;border-radius:14px;box-shadow:0 3px 0 var(--ink)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main class="calc">
+  <div class="top"><span class="title">cutie calc ✨</span><button class="theme" id="theme" aria-label="Theme badlo">🌙</button></div>
+  <div class="screen">
+    <div class="face" id="face">(◕‿◕)</div>
+    <div class="expr" id="expr"></div>
+    <div class="out" id="out">0</div>
+  </div>
+  <div class="history" id="history"></div>
+  <div class="keys" id="keys"></div>
+</main>
+<script>
+const layout=[["AC","clear"],["⌫","del"],["%","op"],["÷","op"],["7"],["8"],["9"],["×","op"],["4"],["5"],["6"],["-","op"],["1"],["2"],["3"],["+","op"],["0"],["."],["=","eq"]];
+const $=id=>document.getElementById(id);
+const out=$("out"),exprEl=$("expr"),face=$("face"),keys=$("keys"),hist=$("history");
+let expr="";const log=[];
+
+// Safe calculator (eval ke bina): recursive-descent parser
+function calc(src){
+  const t=src.replace(/×/g,"*").replace(/÷/g,"/").replace(/%/g,"/100").match(/\d*\.?\d+|[-+*/]/g)||[];
+  let i=0;
+  const prim=()=>{const x=t[i++];if(x==="-")return -prim();if(x==="+")return prim();if(x===undefined||/[*/]/.test(x))throw 0;return parseFloat(x)};
+  const term=()=>{let v=prim();while(t[i]==="*"||t[i]==="/"){const o=t[i++],r=prim();if(o==="/"&&r===0)throw "zero";v=o==="*"?v*r:v/r}return v};
+  const sum=()=>{let v=term();while(t[i]==="+"||t[i]==="-"){const o=t[i++],r=term();v=o==="+"?v+r:v-r}return v};
+  const v=sum();if(i<t.length)throw 0;return +v.toFixed(10);
+}
+
+function mood(f){face.textContent=f;face.classList.add("pop");setTimeout(()=>face.classList.remove("pop"),200)}
+function addHistory(e,r){
+  log.unshift(e+" = "+r);hist.innerHTML="";
+  log.slice(0,10).forEach(l=>{const d=document.createElement("div");d.textContent=l;d.title="Click karke dobara use karo";
+    d.onclick=()=>{expr=l.split(" = ")[1];out.textContent=expr};hist.appendChild(d)});
+}
+function press(k){
+  if(k==="AC"){expr="";out.textContent="0";exprEl.textContent="";return mood("(◕‿◕)")}
+  if(k==="⌫"){expr=expr.slice(0,-1);out.textContent=expr||"0";return}
+  if(k==="="){
+    if(!expr)return;
+    try{const r=String(calc(expr));addHistory(expr,r);exprEl.textContent=expr+" =";out.textContent=r;expr=r;mood("(≧▽≦)")}
+    catch(e){exprEl.textContent=expr+" =";out.textContent=e==="zero"?"zero se divide? nope 🙈":"oops, kuch galat hai 🥺";expr="";mood("(╥﹏╥)")}
+    return;
+  }
+  const ops="+-×÷%",last=expr.slice(-1);
+  if(ops.includes(k)&&!expr&&k!=="-")return;
+  if(ops.includes(k)&&ops.includes(last))expr=expr.slice(0,-1);
+  if(k==="."&&expr.split(/[+\-×÷%]/).pop().includes("."))return;
+  expr+=k;out.textContent=expr;mood("(•‿•)");
+}
+layout.forEach(([l,c])=>{const b=document.createElement("button");b.textContent=l;if(c)b.className=c;b.onclick=()=>press(l);keys.appendChild(b)});
+document.addEventListener("keydown",e=>{
+  const m={"*":"×","/":"÷","Enter":"=","Backspace":"⌫","Escape":"AC"},k=m[e.key]||e.key;
+  if(/^[0-9.+\-%×÷=]$|^(⌫|AC)$/.test(k)){e.preventDefault();press(k)}
+});
+$("theme").onclick=()=>{
+  const r=document.documentElement,dark=r.dataset.theme?r.dataset.theme==="dark":matchMedia("(prefers-color-scheme:dark)").matches;
+  r.dataset.theme=dark?"light":"dark";$("theme").textContent=dark?"🌙":"☀️";
+};
+</script>
+</body>
+</html>
